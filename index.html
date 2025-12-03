@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCI Manager Pro v4.2</title>
+    
+    <!-- 1. Tailwind CSS (Estilos) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React & ReactDOM (Framework) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.294.0"
+            }
+        }
+    </script>
+    
+    <!-- 3. Babel (Para entender JSX en el navegador) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Ajustes para impresión y scrollbar */
+        @media print {
+            body * { visibility: hidden; }
+            #print-template, #print-template * { visibility: visible; }
+            #print-template { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Animaciones custom */
+        .fade-enter { opacity: 0; }
+        .fade-enter-active { opacity: 1; transition: opacity 500ms ease-in; }
+        .fade-exit { opacity: 1; }
+        .fade-exit-active { opacity: 0; transition: opacity 500ms ease-in; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    
+    <div id="root"></div>
+
+    <!-- 4. Lógica de la Aplicación (Módulo ES6 + JSX) -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Flame, Trash2, Plus, Save, FileText, Hammer, HardHat, Package, 
+            Menu, X, LayoutDashboard, BarChart3, TrendingUp, DollarSign, 
+            AlertCircle, LogOut, User, Monitor, Edit3, Table, Filter, 
+            Download, Activity, Lock, Mail, ArrowRight, Loader2, 
+            ShieldCheck, ShoppingCart, FileSpreadsheet, File as FileIcon, 
+            Printer, Search, ChevronLeft, ChevronRight, Image as ImageIcon
+        } from 'lucide-react';
+
+        // --- IMPORTACIÓN DE FIREBASE (Versión Web Modular) ---
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, onAuthStateChanged, signInAnonymously 
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { 
+            getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot 
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // --- CONFIGURACIÓN DE FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "demo-api-key",
+            authDomain: "demo-project.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.warn("Firebase no conectado correctamente (Modo Demo UI):", e);
+        }
+
+        const appId = 'default-sci-app';
+
+        // --- DATOS MAESTROS (Con Imágenes Simuladas) ---
+        const PRODUCT_CATALOG = [
+            { id: 'c1', system: 'deteccion', category: 'equipos', name: 'Panel Simplex 4100ES', model: '4100-9111', series: 'SPX-2024', price: 15000, image: 'https://placehold.co/600x400/BF2233/FFFFFF?text=Panel+Simplex+4100ES' },
+            { id: 'c2', system: 'deteccion', category: 'materiales', name: 'Detector de Humo Fotoeléctrico', model: '4098-9714', series: 'GEN-5', price: 180, image: 'https://placehold.co/600x400/EEE/333?text=Detector+Humo' },
+            { id: 'c3', system: 'deteccion', category: 'materiales', name: 'Estación Manual Doble Acción', model: '4099-9003', series: 'PULL-2', price: 120, image: 'https://placehold.co/600x400/EEE/333?text=Estacion+Manual' },
+            { id: 'c4', system: 'agua', category: 'equipos', name: 'Válvula Mariposa 4" Ranurada', model: 'BFV-300', series: 'TYCO', price: 850, image: 'https://placehold.co/600x400/2255BB/FFFFFF?text=Valvula+Mariposa' },
+            { id: 'c5', system: 'agua', category: 'materiales', name: 'Rociador Pendent K5.6', model: 'TY-325', series: 'QR', price: 45, image: 'https://placehold.co/600x400/EEE/333?text=Rociador+K5.6' },
+            { id: 'c6', system: 'bomba', category: 'equipos', name: 'Bomba Jockey 5HP', model: 'Grundfos CR', series: 'J-500', price: 3200, image: 'https://placehold.co/600x400/DD6622/FFFFFF?text=Bomba+Jockey' },
+            { id: 'c7', system: 'personal', category: 'personal', name: 'Oficial Tubero', model: 'Mano de Obra', series: 'N/A', price: 180, image: 'https://placehold.co/600x400/44AA55/FFFFFF?text=Personal+Tecnico' },
+            { id: 'c8', system: 'herramientas', category: 'herramientas', name: 'Andamio Multidireccional (Día)', model: 'UL-NORM', series: 'N/A', price: 65, image: 'https://placehold.co/600x400/555/FFF?text=Andamios' },
+        ];
+
+        const MASTER_CREDENTIALS = {
+            email: "SISTEMGS70@GMAIL.COM",
+            password: "745JD_2324q@"
+        };
+
+        // --- COMPONENTE CARRUSEL (HERO SLIDER) ---
+        const HeroCarousel = ({ items }) => {
+            const [currentIndex, setCurrentIndex] = useState(0);
+
+            // Auto-play effect
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setCurrentIndex((prevIndex) => (prevIndex + 1) % items.length);
+                }, 4000); // Cambia cada 4 segundos
+                return () => clearInterval(interval);
+            }, [items.length]);
+
+            const nextSlide = () => setCurrentIndex((prev) => (prev + 1) % items.length);
+            const prevSlide = () => setCurrentIndex((prev) => (prev - 1 + items.length) % items.length);
+
+            if (items.length === 0) return null;
+
+            return (
+                <div className="relative w-full h-64 md:h-80 bg-slate-800 rounded-2xl overflow-hidden shadow-2xl mb-8 group">
+                    <div 
+                        className="w-full h-full flex transition-transform duration-700 ease-in-out" 
+                        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+                    >
+                        {items.map((item) => (
+                            <div key={item.id} className="min-w-full h-full relative">
+                                <img src={item.image} alt={item.name} className="w-full h-full object-cover opacity-60" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-8">
+                                    <span className="text-xs font-bold bg-red-600 text-white px-2 py-1 rounded w-fit mb-2 uppercase tracking-wider">{item.category}</span>
+                                    <h2 className="text-3xl font-bold text-white mb-1">{item.name}</h2>
+                                    <p className="text-slate-300">{item.model} - {item.series}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Controles Manuales */}
+                    <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ChevronLeft size={24} />
+                    </button>
+                    <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ChevronRight size={24} />
+                    </button>
+
+                    {/* Indicadores */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                        {items.map((_, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => setCurrentIndex(idx)}
+                                className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex ? 'bg-white w-6' : 'bg-white/50'}`}
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE PRINCIPAL ---
+        function FireSystemQuoter() {
+            // Estados
+            const [sessionUser, setSessionUser] = useState(null);
+            const [userRole, setUserRole] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+            const [authMode, setAuthMode] = useState('login');
+            const [items, setItems] = useState([]);
+            const [loadingData, setLoadingData] = useState(false);
+            const [activeView, setActiveView] = useState('quote');
+            const [currentSystem, setCurrentSystem] = useState('deteccion');
+            const [showExportModal, setShowExportModal] = useState(false);
+            const [firebaseConnected, setFirebaseConnected] = useState(false);
+
+            const [projectInfo, setProjectInfo] = useState({
+                clientName: 'Consorcio Industrial Lima S.A.C.',
+                clientRUC: '20123456789',
+                projectReference: 'Implementación SCI - Almacén Central',
+                date: new Date().toISOString().split('T')[0],
+                validity: '15 días',
+                currency: 'PEN'
+            });
+
+            const SYSTEMS = [
+                { id: 'deteccion', label: 'Detección de Incendio', icon: <Monitor size={18} />, color: 'bg-red-600', gradient: 'from-red-500 to-red-700' },
+                { id: 'agua', label: 'Agua Contra Incendio', icon: <Package size={18} />, color: 'bg-blue-600', gradient: 'from-blue-500 to-blue-700' },
+                { id: 'bomba', label: 'Bomba Contra Incendio', icon: <Hammer size={18} />, color: 'bg-orange-600', gradient: 'from-orange-500 to-orange-700' },
+            ];
+
+            const CATEGORIES = {
+                materiales: { label: 'Lista de Materiales', icon: <Package className="w-4 h-4" /> },
+                herramientas: { label: 'Lista de Herramientas', icon: <Hammer className="w-4 h-4" /> },
+                equipos: { label: 'Lista de Equipos', icon: <Monitor className="w-4 h-4" /> },
+                personal: { label: 'Lista de Personal', icon: <HardHat className="w-4 h-4" /> },
+            };
+
+            // --- EFECTOS DE CONEXIÓN ---
+            useEffect(() => {
+                const initAuth = async () => {
+                    if(!auth) { setAuthLoading(false); return; }
+                    try { await signInAnonymously(auth); } catch (e) { console.warn("Modo Offline/Demo:", e); }
+                };
+                initAuth();
+                if(auth) onAuthStateChanged(auth, (u) => { if(u) { setFirebaseConnected(true); setAuthLoading(false); } else { setAuthLoading(false); } });
+            }, []);
+
+            useEffect(() => {
+                if (!sessionUser || !db) { setItems([]); return; }
+                try {
+                    setLoadingData(true);
+                    const q = collection(db, 'artifacts', appId, 'public', 'data', 'items');
+                    const unsubscribe = onSnapshot(q, (snap) => {
+                        setItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        setLoadingData(false);
+                    });
+                    return () => unsubscribe();
+                } catch(e) { setLoadingData(false); }
+            }, [sessionUser, firebaseConnected]);
+
+            // --- LÓGICA DE NEGOCIO ---
+            const handleAuthSubmit = async (e) => {
+                e.preventDefault();
+                setAuthLoading(true);
+                const email = e.target.email.value.trim();
+                const pass = e.target.password.value;
+                if (email.toUpperCase() === MASTER_CREDENTIALS.email && pass === MASTER_CREDENTIALS.password) {
+                    setSessionUser({ uid: 'master', email: MASTER_CREDENTIALS.email });
+                    setUserRole('admin');
+                    setAuthLoading(false);
+                    return;
+                }
+                setTimeout(() => {
+                    setSessionUser({ uid: 'user-'+Date.now(), email });
+                    setUserRole(authMode === 'register' && e.target.role ? e.target.role.value : 'user');
+                    setAuthLoading(false);
+                }, 800);
+            };
+
+            const handleAddToCart = async (product) => {
+                const newItem = {
+                    system: currentSystem,
+                    category: product.category,
+                    name: product.name,
+                    model: product.model,
+                    series: product.series,
+                    qty: 1,
+                    price: product.price,
+                    createdAt: new Date().toISOString()
+                };
+                if(db && firebaseConnected) {
+                    try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'items'), newItem); } catch (e) { alert(e.message); }
+                } else {
+                    setItems([...items, { ...newItem, id: Date.now().toString() }]);
+                }
+            };
+
+            const handleManualAddItem = async (category) => {
+                const newItem = {
+                    system: currentSystem,
+                    category,
+                    name: '', model: '', series: '', qty: 1, price: 0,
+                    createdAt: new Date().toISOString()
+                };
+                if(db && firebaseConnected) {
+                    try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'items'), newItem); } catch(e) {}
+                } else {
+                    setItems([...items, { ...newItem, id: Date.now().toString() }]);
+                }
+            };
+
+            const handleUpdateItem = async (id, field, value) => {
+                if(db && firebaseConnected) try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'items', id), { [field]: value }); } catch(e){}
+                else setItems(items.map(i => i.id === id ? { ...i, [field]: value } : i));
+            };
+
+            const handleRemoveItem = async (id) => {
+                if(db && firebaseConnected) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'items', id));
+                else setItems(items.filter(i => i.id !== id));
+            };
+
+            const handlePrint = () => window.print();
+
+            const exportToExcel = () => {
+                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                csvContent += "Sistema,Categoria,Item,Modelo,Serie,Cantidad,P.Unit,Total\n";
+                currentSystemItems.forEach(item => {
+                    const row = `${item.system},${item.category},"${item.name}",${item.model},${item.series},${item.qty},${item.price},${item.qty * item.price}`;
+                    csvContent += row + "\n";
+                });
+                const link = document.createElement("a");
+                link.href = encodeURI(csvContent);
+                link.download = `Cotizacion_${currentSystem}_${new Date().getTime()}.csv`;
+                link.click();
+            };
+
+            const formatCurrency = (amt) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amt);
+            const currentSystemItems = useMemo(() => items.filter(i => i.system === currentSystem), [items, currentSystem]);
+            const stats = useMemo(() => {
+                const subtotal = currentSystemItems.reduce((acc, i) => acc + (i.qty * i.price), 0);
+                const igv = subtotal * 0.18;
+                return { subtotal, igv, total: subtotal + igv, count: currentSystemItems.length };
+            }, [currentSystemItems]);
+
+            const filteredCatalog = useMemo(() => 
+                PRODUCT_CATALOG.filter(p => p.system === currentSystem || p.category === 'personal' || p.category === 'herramientas'),
+            [currentSystem]);
+
+            // --- VISTAS INTERNAS ---
+            
+            // 1. LOGIN
+            if (!sessionUser) return (
+                <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full animate-in fade-in zoom-in duration-300">
+                         <div className="text-center mb-6">
+                            <div className="bg-red-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-white"><ShieldCheck size={32}/></div>
+                            <h2 className="text-2xl font-bold text-gray-800">Acceso Corporativo SCI</h2>
+                            <p className="text-xs text-gray-500 mt-1">Plataforma de Ingeniería Web</p>
+                         </div>
+                         <form onSubmit={handleAuthSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Usuario / Email</label>
+                                <input name="email" type="email" placeholder="admin@empresa.com" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" required />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contraseña</label>
+                                <input name="password" type="password" placeholder="••••••••" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" required />
+                            </div>
+                            <button className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors flex justify-center items-center gap-2">
+                                {authLoading ? <Loader2 className="animate-spin" /> : 'Ingresar al Sistema'} <ArrowRight size={16}/>
+                            </button>
+                         </form>
+                         <div className="mt-6 p-3 bg-gray-50 rounded text-center text-xs text-gray-400 border border-gray-100">
+                            <p className="font-semibold text-gray-500">Credenciales Demo:</p>
+                            <p>SISTEMGS70@GMAIL.COM</p>
+                            <p>745JD_2324q@</p>
+                         </div>
+                    </div>
+                </div>
+            );
+
+            // 2. APP PRINCIPAL
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-gray-800 pb-20">
+                    <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-40 print:hidden">
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-red-600 p-1.5 rounded-lg"><Flame size={20} /></div>
+                                <h1 className="text-lg font-bold">SCI Manager <span className="text-green-400 text-xs px-1 border border-green-400 rounded">v4.2 Multimedia</span></h1>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="hidden md:flex flex-col items-end border-l border-slate-700 pl-4">
+                                   <span className="text-xs font-bold">{sessionUser.email}</span>
+                                   <span className="text-[10px] text-gray-400 uppercase">{userRole === 'admin' ? 'Super Admin' : 'Usuario'}</span>
+                                </div>
+                                <button onClick={() => setSessionUser(null)} className="text-gray-400 hover:text-white"><LogOut size={20}/></button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="bg-white border-b border-gray-200 sticky top-16 z-30 shadow-sm print:hidden">
+                        <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
+                          <div className="flex gap-6 overflow-x-auto no-scrollbar">
+                             {SYSTEMS.map(sys => (
+                                <button key={sys.id} onClick={() => setCurrentSystem(sys.id)} className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-all whitespace-nowrap ${currentSystem === sys.id ? `border-${sys.color.replace('bg-', '')} font-bold text-slate-900` : 'border-transparent text-gray-500'}`}>
+                                  <span className={currentSystem === sys.id ? `text-${sys.color.replace('bg-', '')}` : ''}>{sys.icon}</span> {sys.label}
+                                </button>
+                             ))}
+                          </div>
+                        </div>
+                    </div>
+
+                    <main className="max-w-7xl mx-auto px-4 py-8 print:hidden">
+                        
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-2 rounded-xl border border-gray-200 shadow-sm gap-4">
+                           <div className="flex gap-1 w-full md:w-auto overflow-x-auto">
+                              <button onClick={() => setActiveView('catalog')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeView === 'catalog' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-100'}`}><Search size={16} /> Catálogo</button>
+                              <button onClick={() => setActiveView('quote')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeView === 'quote' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-100'}`}><FileText size={16} /> Cotizador <span className="bg-white/20 px-1.5 rounded text-xs">{stats.count}</span></button>
+                              <button onClick={() => setActiveView('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeView === 'dashboard' ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-100'}`}><LayoutDashboard size={16} /> Dashboard</button>
+                           </div>
+                           <button onClick={() => setShowExportModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-red-700 flex items-center gap-2 w-full md:w-auto justify-center"><Printer size={16} /> Exportar</button>
+                        </div>
+
+                        {/* VISTAS */}
+                        {activeView === 'catalog' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                {/* Hero Carousel */}
+                                <HeroCarousel items={filteredCatalog} />
+
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 bg-slate-900 text-white rounded-lg"><Search size={20}/></div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Grid de Productos</h2>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {filteredCatalog.map(product => (
+                                      <div key={product.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden group">
+                                        <div className="h-48 overflow-hidden relative">
+                                            <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                            <div className="absolute top-2 right-2 bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded shadow-sm">
+                                                {formatCurrency(product.price)}
+                                            </div>
+                                        </div>
+                                        <div className="p-4 flex-1 flex flex-col">
+                                            <div className="mb-2"><span className="text-[10px] font-bold text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full uppercase bg-gray-50">{product.category}</span></div>
+                                            <h3 className="font-bold text-gray-800 mb-1 flex-1 leading-tight">{product.name}</h3>
+                                            <p className="text-xs text-gray-400 mb-4">{product.model}</p>
+                                            <button onClick={() => handleAddToCart(product)} className="w-full bg-slate-900 text-white hover:bg-red-600 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 mt-auto shadow-md active:scale-95"><Plus size={14}/> Agregar</button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeView === 'quote' && (
+                           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+                              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex flex-col md:flex-row justify-between items-center text-yellow-800 gap-4">
+                                 <div className="flex items-center gap-3"><AlertCircle /><div><p className="font-bold text-sm">Cotización Activa: {currentSystem.toUpperCase()}</p><p className="text-xs opacity-80">Gestione items manuales o de catálogo.</p></div></div>
+                                 <div className="text-right bg-white/50 px-4 py-2 rounded-lg min-w-[150px]"><p className="text-xs uppercase font-bold opacity-60">Total Estimado</p><p className="font-bold text-xl">{formatCurrency(stats.total)}</p></div>
+                              </div>
+
+                              {Object.keys(CATEGORIES).map(catKey => {
+                                 const catItems = currentSystemItems.filter(i => i.category === catKey);
+                                 return (
+                                   <div key={catKey} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                         <div className="font-bold text-gray-700 flex items-center gap-2">{CATEGORIES[catKey].icon} {CATEGORIES[catKey].label}</div>
+                                         <button onClick={() => handleManualAddItem(catKey)} className="flex items-center gap-1 text-xs font-medium bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-100"><Plus size={14}/> Manual</button>
+                                      </div>
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-sm min-w-[600px]">
+                                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase text-left"><tr><th className="p-3">Item</th><th className="p-3 text-center">Cant</th><th className="p-3 text-right">Precio</th><th className="p-3 text-right">Total</th><th className="p-3"></th></tr></thead>
+                                            <tbody>
+                                                {catItems.length === 0 ? <tr><td colSpan="5" className="p-6 text-center text-gray-400 italic">Sin items.</td></tr> : catItems.map(item => (
+                                                <tr key={item.id} className="border-t border-gray-100 hover:bg-gray-50">
+                                                    <td className="p-3"><input defaultValue={item.name} placeholder="Descripción" onBlur={(e)=>handleUpdateItem(item.id, 'name', e.target.value)} className="w-full bg-transparent font-medium"/><div className="flex gap-2 mt-1"><input defaultValue={item.model} placeholder="Modelo" onBlur={(e)=>handleUpdateItem(item.id, 'model', e.target.value)} className="bg-gray-100 text-xs p-1 rounded w-24"/><input defaultValue={item.series} placeholder="Serie" onBlur={(e)=>handleUpdateItem(item.id, 'series', e.target.value)} className="bg-gray-100 text-xs p-1 rounded w-24"/></div></td>
+                                                    <td className="p-3"><input type="number" defaultValue={item.qty} onChange={(e)=>handleUpdateItem(item.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-gray-100 rounded font-bold p-1"/></td>
+                                                    <td className="p-3 text-right"><input type="number" defaultValue={item.price} onBlur={(e)=>handleUpdateItem(item.id, 'price', Number(e.target.value))} className="w-24 text-right bg-transparent focus:border-b focus:border-blue-500 outline-none"/></td>
+                                                    <td className="p-3 text-right font-bold">{formatCurrency(item.qty * item.price)}</td>
+                                                    <td className="p-3 text-center"><button onClick={()=>handleRemoveItem(item.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button></td>
+                                                </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                      </div>
+                                   </div>
+                                 );
+                              })}
+                           </div>
+                        )}
+                        
+                        {activeView === 'dashboard' && (
+                            <div className="bg-white p-10 rounded-xl text-center border-2 border-dashed border-gray-300">
+                                <LayoutDashboard className="w-16 h-16 text-gray-300 mx-auto mb-4"/>
+                                <h3 className="text-xl font-bold text-gray-600">Dashboard de Ingeniería</h3>
+                                <p className="text-gray-400 mb-6">Visualice métricas clave en tiempo real.</p>
+                                <div className="flex justify-center gap-8 text-left">
+                                    <div><p className="text-xs text-gray-400 uppercase">Inversión Total</p><p className="text-2xl font-bold text-blue-600">{formatCurrency(stats.total)}</p></div>
+                                    <div><p className="text-xs text-gray-400 uppercase">Items Críticos</p><p className="text-2xl font-bold text-purple-600">{stats.count}</p></div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {showExportModal && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                              <div className="bg-slate-900 text-white p-4 flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Printer size={20}/> Exportar</h3><button onClick={() => setShowExportModal(false)}><X size={20}/></button></div>
+                              <div className="p-6 space-y-3">
+                                 <button onClick={handlePrint} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50"><FileIcon className="text-red-500"/> <div><p className="font-bold text-sm text-left">Imprimir / PDF</p><p className="text-xs text-gray-500 text-left">Formato oficial para cliente.</p></div></button>
+                                 <button onClick={exportToExcel} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50"><FileSpreadsheet className="text-green-500"/> <div><p className="font-bold text-sm text-left">Excel / CSV</p><p className="text-xs text-gray-500 text-left">Datos planos para análisis.</p></div></button>
+                              </div>
+                           </div>
+                        </div>
+                    )}
+                    
+                    <div id="print-template" className="hidden">
+                        <div className="text-3xl font-bold text-red-800 uppercase mb-2">Cotización Técnica</div>
+                        <div className="text-sm text-gray-500 mb-8">Sistema Contra Incendio: {currentSystem.toUpperCase()}</div>
+                        <table className="w-full border-collapse border border-gray-300 text-sm">
+                            <thead><tr className="bg-gray-100"><th className="border p-2">Item</th><th className="border p-2">Descripción</th><th className="border p-2">Cant</th><th className="border p-2">P. Unit</th><th className="border p-2">Total</th></tr></thead>
+                            <tbody>
+                                {currentSystemItems.map((it, idx) => (
+                                    <tr key={idx}><td className="border p-2 text-center">{idx+1}</td><td className="border p-2">{it.name} <br/><span className="text-xs text-gray-500">{it.model}</span></td><td className="border p-2 text-center">{it.qty}</td><td className="border p-2 text-right">{formatCurrency(it.price)}</td><td className="border p-2 text-right font-bold">{formatCurrency(it.qty*it.price)}</td></tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="text-right mt-4 font-bold text-xl">Total: {formatCurrency(stats.total)}</div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<FireSystemQuoter />);
+    </script>
+</body>
+</html>
